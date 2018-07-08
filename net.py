@@ -18,6 +18,19 @@ class BaseCalculator(object):
 		return reverse_data
 	def forward(self,input_data, weights):
 		return self.work(input_data, weights)
+class L2CCalculator(BaseCalculator):
+	def __init__(self, calculator, l2c=0.0):
+		self.l2c = l2c 
+		self.calculator = calculator
+	def work(self, input_data,weights):
+		return self.calculator.work(input_data,weights)
+	def feedback(self, input_data, reverse_data, weights, alters):
+		reverse_data = self.calculator.feedback(input_data, reverse_data, weights, alters)
+		if self.l2c != 0.0:
+			alters += weights * self.l2c 
+		return reverse_data 
+	def forward(self,input_data, weights):
+		return self.calculator.forward(input_data, weights)
 class FuncCalculator(BaseCalculator):
 	def _work(self, input_data):
 		return input_data 
@@ -57,20 +70,17 @@ class ReLuCalculator(FuncCalculator):
 		return out
 
 class FullCalculator(BaseCalculator):
-	def __init__(self, l2c):
-		self.l2c = l2c 
+	def __init__(self):
 
 	def work(self, input_data, weights):
 		output_data=np.dot(input_data,weights)
 		return output_data 
 
-	def feedback(self, input_data, reverse_data, weights, alters):
+	def _feedback(self, input_data, reverse_data, weights, alters):
 		num, input_size=input_data.shape
 		for n in xrange(num):
 			tmp=reverse_data[n]*input_data[n].reshape(input_size,1)
 			alters+=tmp
-		if self.l2c!=0.0:
-			alters += weights * self.l2c 
 		reverse_data=np.dot(reverse_data,weights.T);
 		return reverse_data
 
@@ -179,7 +189,7 @@ def fullnet(input, output_size, l2c = 0.0, momentum = 1.0):
 	input_size = get_size(input)
 	weights = np.random.random([input_size, output_size]) - 0.5
 	alters = np.zeros(weights.shape, dtype = weights.dtype)
-	calculator = FullCalculator(l2c)
+	calculator = L2CCalculator(FullCalculator(),l2c)
 	net = BaseNet(calculator,weights,momentum,alters)
 	net.build_input_shape_size(input_size)
 	net.build_output_shape_size(output_size)
