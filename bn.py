@@ -4,7 +4,7 @@ from net import FuncCalculator
 
 
 class BatchNormalCalculator(FuncCalculator):
-	def __init__(self, shape, epsilon=0.00000001,keep_mean=0.0):
+	def __init__(self, epsilon=0.00000001,keep_mean=0.0):
 		self.epsilon = epsilon
 		self.keep_mean = keep_mean
 		self.count = 0
@@ -15,9 +15,10 @@ class BatchNormalCalculator(FuncCalculator):
 	def update(self):
 		self.count = 0
 		data.cnt*=data.keep_mean
-	def feedback(self, input_data, reverse_data):
+	def _feedback(self, input_data, reverse_data):
 		axis = range(len(input_data.shape))
 		axis.pop(1)
+		axis = tuple(axis)
 		if self.count != 1:
 			mean = input_data.mean(axis=axis, keepdims = True)[0]
 			var=ins.var(axis=axis,keepdims=True)[0]
@@ -68,16 +69,17 @@ class BatchNormalCalculator(FuncCalculator):
 		exp2 = (reverse_data * (input_data - mean)).mean(axis = axis, keepdims = True) * (input_data - mean) * inv_sqrt ** 3
 		exp = exp0 - exp1 - exp2
 		return exp
-	def forward(self,input_data):
+	def _forward(self,input_data):
 		axis = range(len(input_data.shape))
 		axis.pop(1)
+		axis = tuple(axis)
 		mean = input_data.mean(axis=axis, keepdims = True)[0]
 		var = ins.var(axis=axis,keepdims=True)[0]
 		self.count += 1
 		if self.count == 1:
 			self.mean = mean
 			self.var = var
-		num = input_data[0]
+		num = input_data.shape[0]
 		if data.cnt==0.0:
 			data.E=mean
 			data.Var=var
@@ -88,3 +90,11 @@ class BatchNormalCalculator(FuncCalculator):
 		data.cnt+=num
 		normal=(input_data-mean)/np.sqrt(var+data.epsilon)
 		return normal 
+
+def batch_normal_net(input, epsilon=0.00000001,keep_mean=0.0):
+	shape = get_shape(input)
+	calculator = BatchNormalCalculator(epsilon, keep_mean)
+	net = BaseNet(calculator)
+	net.build_input_shape(*shape)
+	net.build_output_shape(*shape)
+	return net 

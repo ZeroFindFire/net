@@ -18,6 +18,8 @@ class BaseCalculator(object):
 		return reverse_data
 	def forward(self,input_data, weights):
 		return self.work(input_data, weights)
+	def update(self):
+		pass 
 class L2CCalculator(BaseCalculator):
 	def __init__(self, calculator, l2c=0.0):
 		self.l2c = l2c 
@@ -70,13 +72,11 @@ class ReLuCalculator(FuncCalculator):
 		return out
 
 class FullCalculator(BaseCalculator):
-	def __init__(self):
-
 	def work(self, input_data, weights):
 		output_data=np.dot(input_data,weights)
 		return output_data 
 
-	def _feedback(self, input_data, reverse_data, weights, alters):
+	def feedback(self, input_data, reverse_data, weights, alters):
 		num, input_size=input_data.shape
 		for n in xrange(num):
 			tmp=reverse_data[n]*input_data[n].reshape(input_size,1)
@@ -84,25 +84,50 @@ class FullCalculator(BaseCalculator):
 		reverse_data=np.dot(reverse_data,weights.T);
 		return reverse_data
 
+class LinearCalculator(BaseCalculator):
+	def work(self, input_data, weights):
+		output_data=input_data * weights
+		return output_data 
+
+	def feedback(self, input_data, reverse_data, weights, alters):
+		input_shape = input_data.shape[1:]
+		weight_shape = wegiths.shape 
+		updates = input_data * reverse_data
+		axis = []
+		for i in xrange(len(weight_shape)):
+			if weight_shape[i] != input_shape[i]:
+				axis.append(i+1)
+		axis=tuple([0]+axis)
+		updates = (input_data * reverse_data).sum(axis=axis, keepdims = True)[0]
+		alters += updates
+		reverse_data=reverse_data*weights
+		return reverse_data
+def linear_net(input, axis = None, l2c = 0.0, momentum = 1.0):
+	shape = get_shape(input)
+	if axis is not None:
+		for i in axis:
+			shape[i]=1
+	weights = np.random.random(shape) - 0.5
+	calculator = L2CCalculator(LinearCalculator(),l2c)
+	net = BaseNet(calculator,weights,momentum)
+	net.build_input_shape(*shape)
+	net.build_output_shape(*shape)
+	return net
 class BaseNet(object):
 	def __init__(self, calculator = BaseCalculator(), weights = None, momentum = 1.0, alters = None):
 		self.calculator = calculator
 		self.weights = weights 
 		self.alters = alters
+		if weights is not None and alters is None:
+			alters = np.zeros(weights.shape,dtype=weights.dtype)
 		self.momentum = momentum
 		self.output = self.work
-	def build_shape_size(self,size):
-		return [size]
-	def build_shape_3d(self,deep,height,width):
-		return [deep,height,width]
-	def build_input_shape_size(self, size):
-		self.input_shape = self.build_shape_size(size)
-	def build_input_shape_3d(self, deep, height , width ):
-		self.input_shape=self.build_shape_3d(deep,height,width)
-	def build_output_shape_size(self, size):
-		self.output_shape = self.build_shape_size(size)
-	def build_output_shape_3d(self, deep, height , width ):
-		self.output_shape=self.build_shape_3d(deep,height,width)
+	def build_shape(self, *sizes):
+		return list(sizes)
+	def build_input_shape(self, *sizes):
+		self.input_shape = self.build_shape(*sizes)
+	def build_output_shape(self, *sizes):
+		self.input_shape = self.build_shape(*sizes)
 	def input_reshape(self, input_data):
 		size = sum(self.input_shape)
 		num = input_data.size/size 
@@ -125,6 +150,7 @@ class BaseNet(object):
 		self.feedback_reshape(reverse_data)
 		return self.calculator.feedback( input_data, reverse_data, self.weights, self.alters)
 	def update(self, weight=1.0):
+		self.calculator.update()
 		weights,alters=self.weights,self.alters
 		if alters is None:
 			return 
@@ -182,24 +208,34 @@ class ListNet(BaseNet):
 		return reverse_data
 
 def get_size(input):
-	size = sum(input.output_shape) if hasattr(input,'output_shape') else input 
+	if hasattr(input,'output_shape'):
+		size = 1
+		for sz in input.output_shape:
+			size *= sz 
+	else:
+		size = input 
 	return size 
+def get_shape(input):
+	if hasattr(input,'output_shape'):
+		shape = input.output_shape 
+	else:
+		shape = input 
+	return shape 
 
 def fullnet(input, output_size, l2c = 0.0, momentum = 1.0):
 	input_size = get_size(input)
 	weights = np.random.random([input_size, output_size]) - 0.5
-	alters = np.zeros(weights.shape, dtype = weights.dtype)
 	calculator = L2CCalculator(FullCalculator(),l2c)
-	net = BaseNet(calculator,weights,momentum,alters)
-	net.build_input_shape_size(input_size)
-	net.build_output_shape_size(output_size)
+	net = BaseNet(calculator,weights,momentum)
+	net.build_input_shape(input_size)
+	net.build_output_shape(output_size)
 	return net 
 
 def funcnet(input, calculator = FuncCalculator()):
 	size = get_size(input)
 	net = BaseNet(calculator)
-	net.build_input_shape_size(size)
-	net.build_output_shape_size(size)
+	net.build_input_shape(size)
+	net.build_output_shape(size)
 	return net 
 
 def sigmodnet(input):
@@ -257,8 +293,8 @@ class CostNet(BaseNet):
 def costnet(input, calculator = CostCalculator()):
 	size = get_size(input)
 	net = CostNet( calculator)
-	net.build_input_shape_size(size)
-	net.build_output_shape_size(size)
+	net.build_input_shape(size)
+	net.build_output_shape(size)
 	return net 
 
 def sqrcost(input):
