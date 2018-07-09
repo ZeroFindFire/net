@@ -98,3 +98,199 @@ def batch_normal_net(input, epsilon=0.00000001,keep_mean=0.0):
 	net.build_input_shape(*shape)
 	net.build_output_shape(*shape)
 	return net 
+
+
+
+expressions_build = """
+(x-mean(x))/sqrt(var(x)+ep) = A / B
+x = x1,...,xn
+d(mean(x))/dxi = xi/n
+
+
+vector = v0, v1, ..., vn-1
+output = o0, o1, ..., on-1
+
+output = 
+
+vector - mean
+______________
+
+sqrt(var + C)
+
+
+n = len(vetor)
+mean = sum(vector) / n
+var = sum((vector - mean) ** 2) / n
+    = sum((vi - mean) ** 2) / n,   i = 0, 1, ..., n-1
+
+d output
+________
+
+  d vi 
+
+= sum ( d oj / d vi ) j = 0, 1, ..., n-1
+
+
+oj = 
+
+vj - mean
+______________
+
+sqrt(var + C)
+
+
+d oj / d vi = 
+
+[d (vj - mean) / d vi] * sqrt(var + C) - [d (sqrt(var + C)) / d vi] * (vj - mean)
+____________________________________________________________________________________
+				var + C
+
+
+d mean / d vi = 1 / n
+d (vj - mean) / d vi = d vj / d vi - 1 / n
+d (vj - mean) ** 2 / d vi = 2 * (vj - mean) * (d vj / d vi - 1 / n)
+
+d var / d vi = 1/n * sum{2 * (vj - mean) * (d vj / d vi - 1 / n)}
+= 2 * sum { (vj - mean) * (d vj / d vi - 1 / n) } / n, j = 0, 1, ..., n-1
+= 2 *[ sum { d vj / d vi * (vj - mean) } - sum { (vj - mean) / n} ] / n
+= 2 * sum { d vj / d vi * (vj - mean) } / n
+= 2 * (vi - mean) / n
+
+d sqrt(var + C) / d vi = 1/(2 * sqrt(var + C)) * d var / dvi 
+= (vi - mean) / [ n * sqrt(var + C)]
+
+
+d oj / d vi = 
+
+[d vj / d vi - 1 / n] * sqrt(var + C) - {(vi - mean) / [ n * sqrt(var + C)]} * (vj - mean)
+____________________________________________________________________________________________
+				var + C
+
+= 
+
+d vj / d vi * sqrt(var + C) - sqrt(var + C) / n - {(vi - mean) / [ n * sqrt(var + C)]} * (vj - mean)
+____________________________________________________________________________________________________
+				var + C
+
+
+sum (rj * d oj / d vi), j = 0, 1, ..., n-1
+
+= sum {
+
+rj * <d vj / d vi * sqrt(var + C) - sqrt(var + C) / n - {(vi - mean) / [ n * sqrt(var + C)]} * (vj - mean)>
+____________________________________________________________________________________________________________
+				var + C
+
+}
+
+= sum {
+
+rj * <d vj / d vi * sqrt(var + C) - sqrt(var + C) / n - (vi - mean) * (vj - mean) / [ n * sqrt(var + C)]>
+____________________________________________________________________________________________________________
+				var + C
+
+}
+
+= sum {
+rj * <d vj / d vi * sqrt(var + C) - sqrt(var + C) / n - (vi - mean) * (vj - mean) / [ n * sqrt(var + C)]>
+}/(var + C)
+
+= sum {
+rj * d vj / d vi * sqrt(var + C) - rj * sqrt(var + C) / n - rj * (vi - mean) * (vj - mean) / [ n * sqrt(var + C)]}
+}/(var + C)
+
+= {
+sum<rj * d vj / d vi * sqrt(var + C)>
+- sum<rj * sqrt(var + C) / n>
+- sum<rj * (vi - mean) * (vj - mean) / [ n * sqrt(var + C)]>
+}
+/(var + C)
+
+= {
+ri * sqrt(var + C)
+- sum<rj> * sqrt(var + C) / n
+- sum<rj * (vi - mean) * (vj - mean) / [ n * sqrt(var + C)]>
+}
+/(var + C)
+
+= {
+ri * sqrt(var + C)
+- sum<rj> * sqrt(var + C) / n
+- sum<rj * (vj - mean)> * (vi - mean)/ [ n * sqrt(var + C)]
+}
+/(var + C)
+
+= {
+ri * sqrt(var + C)
+- sum<rj> * sqrt(var + C) / n
+- sum<rj * vj - rj * mean> * (vi - mean)/ [ n * sqrt(var + C)]
+}
+/(var + C)
+
+= sum {
+
+- {(vi - mean) / [ n * sqrt(var + C)]} * (vj - mean)
+_____________________________________________________
+               var + C
+
+}
+
+= sum {
+
+- (vi - mean) * (vj - mean)
+________________________________
+(var + C) * n * sqrt(var + C)
+
+}
+
+= 
+
+- (vi - mean) * sum(vj - mean)
+________________________________
+(var + C) * n * sqrt(var + C)
+
+= 
+
+        - (vi - mean)
+________________________________
+(var + C) * n * sqrt(var + C)
+
+
+
+
+
+
+
+sum (d oj / d vi), j = 0, 1, ..., n-1
+
+= sum {
+
+- {(vi - mean) / [ n * sqrt(var + C)]} * (vj - mean)
+_____________________________________________________
+               var + C
+
+}
+
+= sum {
+
+- (vi - mean) * (vj - mean)
+________________________________
+(var + C) * n * sqrt(var + C)
+
+}
+
+= 
+
+- (vi - mean) * sum(vj - mean)
+________________________________
+(var + C) * n * sqrt(var + C)
+
+= 
+
+        - (vi - mean)
+________________________________
+(var + C) * n * sqrt(var + C)
+
+
+
+"""

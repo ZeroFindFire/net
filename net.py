@@ -286,11 +286,11 @@ class CostCalculator(FuncCalculator):
 class LogCost(CostCalculator):
 	def _cost(self,outs,stds):
 		wk=outs*stds+(1.0-stds)
-		wk=-stds*np.log(outs)
+		wk=-stds*np.log(outs) - (1.0 - stds) * np.log(1.0 - outs)
 		return wk
 	def _feedback(self,outs,stds):
 		wk=(outs+(1.0-stds))
-		wk=-stds/wk
+		wk=-stds/outs + (1.0 - stds)/ (1.0 - outs)
 		return wk
 
 class SqrCost(CostCalculator):
