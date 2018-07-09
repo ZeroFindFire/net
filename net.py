@@ -22,6 +22,7 @@ class BaseCalculator(object):
 		pass 
 class L2CCalculator(BaseCalculator):
 	def __init__(self, calculator, l2c=0.0):
+		BaseCalculator.__init__(self)
 		self.l2c = l2c 
 		self.calculator = calculator
 	def work(self, input_data,weights):
@@ -33,6 +34,23 @@ class L2CCalculator(BaseCalculator):
 		return reverse_data 
 	def forward(self,input_data, weights):
 		return self.calculator.forward(input_data, weights)
+class LossCalculator(BaseCalculator):
+	def __init__(self, calculator, loss=0.01):
+		BaseCalculator.__init__(self)
+		self.calculator = calculator
+		self.loss = loss 
+	def work(self, input_data,weights):
+		return self.calculator.work(input_data,weights)
+	def feedback(self, input_data, reverse_data, weights, alters):
+		reverse_data = self.calculator.feedback(input_data, reverse_data, weights, alters)
+		if self.l2c != 0.0:
+			alters += weights * self.l2c 
+		return reverse_data 
+	def forward(self,input_data, weights):
+		output_data = self.calculator.forward(input_data, weights)
+		output_data *= (np.random.random(output_data.shape) > self.loss)
+		return output_data
+
 class FuncCalculator(BaseCalculator):
 	def _work(self, input_data):
 		return input_data 
@@ -47,6 +65,22 @@ class FuncCalculator(BaseCalculator):
 		return self._feedback(input_data, reverse_data)
 	def forward(self,input_data, weights):
 		return self._forward(input_data)
+
+class LossFunction(FuncCalculator):
+	def __init__(self, loss):
+		FuncCalculator.__init__(self)
+		self.loss = loss 
+	def _forward(self,input_data):
+		output_data = input_data * (np.random.random(input_data.shape) > self.loss)
+		return output_data
+
+def loss_net(input, loss = 0.01):
+	shape = get_shape(input)
+	calculator = LossFunction(loss)
+	net = BaseNet(calculator)
+	net.build_input_shape(*shape)
+	net.build_output_shape(*shape)
+	return net 
 
 class SigmodCalculator(FuncCalculator):
 	def _work(self,vt):
@@ -70,7 +104,6 @@ class ReLuCalculator(FuncCalculator):
 		out=(sums>0).astype(sums.dtype)
 		out*=rvs
 		return out
-
 class FullCalculator(BaseCalculator):
 	def work(self, input_data, weights):
 		output_data=np.dot(input_data,weights)
@@ -154,6 +187,10 @@ class BaseNet(object):
 		self.momentum = momentum
 		self.output = self.work
 	def build_shape(self, *sizes):
+		if len(sizes)== 1:
+			size = sizes[0]
+			if type(size) in (tuple, list):
+				return list(size)
 		return list(sizes)
 	def build_input_shape(self, *sizes):
 		self.input_shape = self.build_shape(*sizes)
