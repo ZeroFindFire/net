@@ -102,6 +102,23 @@ class LinearCalculator(BaseCalculator):
 		alters += updates
 		reverse_data=reverse_data*weights
 		return reverse_data
+class BeltaCalculator(BaseCalculator):
+	def work(self, input_data, weights):
+		output_data=input_data + weights
+		return output_data 
+
+	def feedback(self, input_data, reverse_data, weights, alters):
+		input_shape = input_data.shape[1:]
+		weight_shape = weights.shape 
+		updates = input_data * reverse_data
+		axis = []
+		for i in xrange(len(weight_shape)):
+			if weight_shape[i] != input_shape[i]:
+				axis.append(i+1)
+		axis=tuple([0]+axis)
+		updates = reverse_data.sum(axis=axis, keepdims = True)[0]
+		alters += updates
+		return reverse_data
 def linear_net(input, axis = None, l2c = 0.0, momentum = 1.0):
 	shape = get_shape(input)
 	if axis is not None:
@@ -113,13 +130,24 @@ def linear_net(input, axis = None, l2c = 0.0, momentum = 1.0):
 	net.build_input_shape(*shape)
 	net.build_output_shape(*shape)
 	return net
+def belta_net(input, axis = None, momentum = 1.0):
+	shape = get_shape(input)
+	if axis is not None:
+		for i in axis:
+			shape[i]=1
+	weights = np.random.random(shape) - 0.5
+	calculator = BeltaCalculator()
+	net = BaseNet(calculator,weights,momentum)
+	net.build_input_shape(*shape)
+	net.build_output_shape(*shape)
+	return net
 class BaseNet(object):
 	def __init__(self, calculator = BaseCalculator(), weights = None, momentum = 1.0, alters = None):
 		self.calculator = calculator
 		self.weights = weights 
-		self.alters = alters
 		if weights is not None and alters is None:
 			alters = np.zeros(weights.shape,dtype=weights.dtype)
+		self.alters = alters
 		self.momentum = momentum
 		self.output = self.work
 	def build_shape(self, *sizes):
@@ -127,7 +155,7 @@ class BaseNet(object):
 	def build_input_shape(self, *sizes):
 		self.input_shape = self.build_shape(*sizes)
 	def build_output_shape(self, *sizes):
-		self.input_shape = self.build_shape(*sizes)
+		self.output_shape = self.build_shape(*sizes)
 	def input_reshape(self, input_data):
 		size = sum(self.input_shape)
 		num = input_data.size/size 
@@ -254,6 +282,7 @@ class CostCalculator(FuncCalculator):
 		reverse_data = self._feedback(input_data, reverse_data)
 		return reverse_data * inv_num 
 
+# alter needed
 class LogCost(CostCalculator):
 	def _cost(self,outs,stds):
 		wk=outs*stds+(1.0-stds)
