@@ -192,6 +192,9 @@ class BaseNet(object):
 			if type(size) in (tuple, list):
 				return list(size)
 		return list(sizes)
+	def build_shape_io(self, *sizes):
+		self.build_input_shape(*sizes)
+		self.build_output_shape(*sizes)
 	def build_input_shape(self, *sizes):
 		self.input_shape = self.build_shape(*sizes)
 	def build_output_shape(self, *sizes):
