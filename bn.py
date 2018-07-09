@@ -1,6 +1,6 @@
 #coding=utf-8
 import numpy as np 
-from net import FuncCalculator
+from net import FuncCalculator, get_shape, BaseNet
 
 
 class BatchNormalCalculator(FuncCalculator):
@@ -8,20 +8,20 @@ class BatchNormalCalculator(FuncCalculator):
 		self.epsilon = epsilon
 		self.keep_mean = keep_mean
 		self.count = 0
-		data.cnt = 0.0
+		self.cnt = 0.0
 	def _work(self, input_data):
-		normal=(input_data-self.E)/np.sqrt(self.Var+data.epsilon)
+		normal=(input_data-self.E)/np.sqrt(self.Var+self.epsilon)
 		return normal 
 	def update(self):
 		self.count = 0
-		data.cnt*=data.keep_mean
+		self.cnt*=self.keep_mean
 	def _feedback(self, input_data, reverse_data):
 		axis = range(len(input_data.shape))
 		axis.pop(1)
 		axis = tuple(axis)
 		if self.count != 1:
 			mean = input_data.mean(axis=axis, keepdims = True)[0]
-			var=ins.var(axis=axis,keepdims=True)[0]
+			var=input_data.var(axis=axis,keepdims=True)[0]
 		else:
 			mean = self.mean
 			var=self.var
@@ -74,21 +74,21 @@ class BatchNormalCalculator(FuncCalculator):
 		axis.pop(1)
 		axis = tuple(axis)
 		mean = input_data.mean(axis=axis, keepdims = True)[0]
-		var = ins.var(axis=axis,keepdims=True)[0]
+		var = input_data.var(axis=axis,keepdims=True)[0]
 		self.count += 1
 		if self.count == 1:
 			self.mean = mean
 			self.var = var
 		num = input_data.shape[0]
-		if data.cnt==0.0:
-			data.E=mean
-			data.Var=var
+		if self.cnt==0.0:
+			self.E=mean
+			self.Var=var
 		else:
-			p=data.cnt/(data.cnt+num)
-			data.E=data.E*p+mean*(1.0-p)
-			data.Var=data.Var*p+var*(1.0-p)
-		data.cnt+=num
-		normal=(input_data-mean)/np.sqrt(var+data.epsilon)
+			p=self.cnt/(self.cnt+num)
+			self.E=self.E*p+mean*(1.0-p)
+			self.Var=self.Var*p+var*(1.0-p)
+		self.cnt+=num
+		normal=(input_data-mean)/np.sqrt(var+self.epsilon)
 		return normal 
 
 def batch_normal_net(input, epsilon=0.00000001,keep_mean=0.0):

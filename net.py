@@ -91,13 +91,14 @@ class LinearCalculator(BaseCalculator):
 
 	def feedback(self, input_data, reverse_data, weights, alters):
 		input_shape = input_data.shape[1:]
-		weight_shape = wegiths.shape 
+		weight_shape = weights.shape 
 		updates = input_data * reverse_data
 		axis = []
 		for i in xrange(len(weight_shape)):
 			if weight_shape[i] != input_shape[i]:
 				axis.append(i+1)
 		axis=tuple([0]+axis)
+		#print "axis:",axis
 		updates = (input_data * reverse_data).sum(axis=axis, keepdims = True)[0]
 		alters += updates
 		reverse_data=reverse_data*weights
@@ -124,6 +125,7 @@ def linear_net(input, axis = None, l2c = 0.0, momentum = 1.0):
 	if axis is not None:
 		for i in axis:
 			shape[i]=1
+	shape = tuple(shape)
 	weights = np.random.random(shape) - 0.5
 	calculator = L2CCalculator(LinearCalculator(),l2c)
 	net = BaseNet(calculator,weights,momentum)
@@ -135,6 +137,7 @@ def belta_net(input, axis = None, momentum = 1.0):
 	if axis is not None:
 		for i in axis:
 			shape[i]=1
+	shape = tuple(shape)
 	weights = np.random.random(shape) - 0.5
 	calculator = BeltaCalculator()
 	net = BaseNet(calculator,weights,momentum)
