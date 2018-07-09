@@ -25,6 +25,7 @@ def demo(size=100, alpha = 0.1, cost = logcost):
 	#net = nets.push(batch_normal_net(net,keep_mean = 0.01))
 	#net = nets.push(linear_net(net,None, l2c, momentum))
 	#net = nets.push(belta_net(net,None, momentum))
+	net = nets.push(batch_normal_net_weights(net,l2c,momentum,keep_mean = 0.01))
 	net = nets.push(fullnet(net,10, l2c, momentum))
 	net = nets.push(belta_net(net,None, momentum))
 	net = nets.push(sigmodnet(net))

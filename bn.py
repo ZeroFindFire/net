@@ -1,6 +1,6 @@
 #coding=utf-8
 import numpy as np 
-from net import FuncCalculator, get_shape, BaseNet
+from net import FuncCalculator, get_shape, BaseNet, ListNet, linear_net, belta_net
 
 
 class BatchNormalCalculator(FuncCalculator):
@@ -99,7 +99,12 @@ def batch_normal_net(input, epsilon=0.00000001,keep_mean=0.0):
 	net.build_output_shape(*shape)
 	return net 
 
-
+def batch_normal_net_weights(input, l2c = 0.0, momentum = 1.0, epsilon=0.00000001,keep_mean=0.0):
+	nets = ListNet()
+	net = nets.push(batch_normal_net(input,epsilon, keep_mean))
+	net = nets.push(linear_net(net,None,l2c, momentum))
+	net = nets.push(belta_net(net,None, momentum))
+	return nets
 
 expressions_build = """
 (x-mean(x))/sqrt(var(x)+ep) = A / B
