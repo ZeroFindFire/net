@@ -55,23 +55,24 @@ filter_source = """
 	#define step_width_image parameters[14]
 	#define step_thread parameters[15]
 	#define max_num_thread parameters[16]
-	__device__ Gfloat piece_filter(const Gfloat* image, const Gfloat* filter, const int* parameters, left, top){
+	__device__ Gfloat piece_filter(const Gfloat* image, const Gfloat* filter, const int* parameters, const int base_left, const int base_top){
 		Gfloat rst = 0;
-		int index_height_image = top;
-		int index_width_image = left;
-		for (int index_height = 0; index_height < height_filter; ++index_height) {
+		int index_height_image = base_top;
+		int index_width_image = base_left;
+		for (int index_height_filter = 0; index_height_filter < height_filter; ++index_height_filter) {
 			index_height_image += step_height_image;
 			if (index_height_image < 0 || index_height_image >= height_image) {
 				continue;
 			}
-			for (int index_width = 0; index_width < width_filter; ++index_width) {
+			for (int index_width_filter = 0; index_width_filter < width_filter; ++index_width_filter) {
 				index_width_image += step_width_image;
 				if (index_width_image < 0 || index_width_image >= width_image) {
 					continue;
 				}
-				rst += image[index_height_image * width_image + index_width_image] * filter[index_width * filter_width + index_height];
+				rst += image[index_height_image * width_image + index_width_image] 
+					* filter[index_height_filter * filter_width + index_width_filter];
 			}
-			index_width_image = left;
+			index_width_image = base_left;
 		}
 		return rst;
 	}
@@ -101,6 +102,86 @@ filter_source = """
 		int index_thread = idint();
 		while (index_thread < max_num_thread) {
 			dv_filter(images, filters, parameters, index_thread, outputs);
+			index_thread += step_thread;
+		}
+	}
+	__device__ void filter_point_feedback(const Gfloat* images, const Gfloat* alters, const int* parameters, 
+		const Gfloat* reverses, int index_thread){
+		int index_width_filter = index_thread % width_filter;
+		index_thread /= width_filter;
+		int index_height_filter = index_thread % height_filter;
+		index_thread /= height_filter;
+		int index_depth = index_thread % depth;
+		index_thread /= depth;
+		int index_filter = index_thread;
+		
+		Gfloat rst = 0;
+		reverses += num_left * num_top * index_filter;
+		images += width_image * height_image * index_depth;
+		for (int index_image = 0; index_image < nums_image; ++index_image) {
+			for (int index_top = 0; index_top < num_top; ++index_top) {
+				int base_top = top + index_top * step_top;
+				int index_height_image = base_top + step_height_image * index_height_filter;
+				if (index_height_image < 0 || index_height_image >= height_image) {
+					continue;
+				}
+				for (int index_left = 0; index_left < num_left; ++index_left) {
+					int base_left = left + index_left * step_left;
+					int index_width_image = base_left + step_width_image * index_width_filter;
+					if (index_width_image < 0 || index_width_image >= width_image) {
+						continue;
+					}
+					rst += images[index_height_image * width_image + index_width_image] * reverse[index_top * num_left + index_left];
+				}
+			}
+			reverses += num_left * num_top * nums_filter;
+			images += width_image * height_image * depth;
+		}
+		alters[((index_filter * depth + index_depth) * height_filter + index_height_filter) * width_filter + index_width_filter] += rst;
+	}
+	__device__ void filter_input_feedback(Gfloat* outputs, const Gfloat* filters, const int* parameters, 
+		const Gfloat* reverses, int index_thread){
+		int index_width_image = index_thread % width_image;
+		index_thread /= width_image;
+		int index_height_image = index_thread % height_image;
+		index_thread /= height_image;
+		int index_depth = index_thread % depth;
+		index_thread /= depth;
+		int index_image = index_thread;
+		reverses += (index_image * depth + index_depth) * width_image * height_image;
+		filters += width_filter * height_filter * index_depth;
+		Gfloat rst = 0;
+		for (int index_filter = 0; index_filter < nums_filter; ++index_filter) {
+			for (int index_height_filter = 0; index_height_filter < height_filter; ++index_height_filter) {
+				int base_height_image = index_height_image - index_height_filter * step_height_image;
+				int index_height_reverse = (base_height_image - top) / step_top;
+				if (index_height_reverse < 0 || index_height_reverse >= num_top){
+					continue;
+				}
+				for (int index_width_filter = 0; index_width_filter < width_filter; ++index_width_filter) {
+					int base_width_image = index_width_image - index_width_filter * step_width_image;
+					int index_width_reverse = (base_width_image - left) / step_left;
+					if (index_width_reverse < 0 || index_width_reverse >= num_left){
+						continue;
+					}
+					rst += filters[index_height_filter * width_filter + index_width_filter] 
+						* reverses[index_height_reverse * num_left + index_width_reverse];
+				}
+			}
+			filters += width_filter * height_filter * depth;
+		}
+		outputs[((index_image * depth + index_depth) * height_image + index_height_image) * width_image + index_width_image] = rst;
+	}
+	__global__ void g_filter_feedback(const Gfloat* images, const Gfloat* filters, const int* parameters, 
+		const Gfloat* reverses, Gfloat* alters, Gfloat* outputs) {
+		int index_thread = idint();
+		int total_filters = nums_filter * depth * width_filter * height_filter;
+		while (index_thread < max_num_thread) {
+			if (index_thread < total_filters) {
+				filter_point_feedback(images, alters, parameters,reverses, index_thread);
+			} else {
+				filter_input_feedback(outputs, filters, parameters, reverses, index_thread - total_filters);
+			}
 			index_thread += step_thread;
 		}
 	}
@@ -152,7 +233,7 @@ def build_parameters(images, filters, num_threads, step_left=1, step_top=1, step
 		last_index_top = (height_image - height_box) / step_top
 		num_top = last_index_top + 1
 	elif filter_type == Same:
-		raise Exception("Uncomplete filter type: "+str(filter_type))
+		raise Exception("Uncomplete filter type: Same("+str(filter_type)+")")
 		pass 
 	elif filter_type == Full:
 		left, top = 1 - width_box, 1 - height_box 
