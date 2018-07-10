@@ -33,6 +33,9 @@ test(outs,ins,sizes,block = (size,1,1),grid=(1,1))
 print("resule:",a.shape)
 
 def img2arr(img):
+	if type(img) in [str,unicode]:
+		import PIL.Image 
+		img = PIL.Image.open(img)
 	img = np.array(img).astype(np.float)
 	img /= 256
 	shape = list(img.shape)
