@@ -17,6 +17,8 @@ source = """
 			return;
 		}
 		outs[thdId] *= outs[thdId] * ins[thdId];
+		__syncthreads();
+		__shared__ int sharedata[128];
 	}
 """
 mod = SourceModule(source)
@@ -209,8 +211,8 @@ parameters_description = """
 Valid=0
 Same=1
 Full=2
-ft_mod = SourceModule(filter_source)
-g_filter = ft_mod.get_function("g_filter")
+ft_mod = None#SourceModule(filter_source)
+g_filter = None#ft_mod.get_function("g_filter")
 def image_filter(image, filter):
 	image = np.array(image).astype(np.float64)
 	filter = np.array(filter).astype(np.float64)
@@ -249,7 +251,7 @@ def build_parameters(images, filters, num_threads, step_left=1, step_top=1, step
 	rst += [left, top, step_left, step_top, num_left, num_top, step_height_image, step_width_image]
 	total_num = nums_image * nums_filter * num_left * num_top
 	max_num_thread = total_num
-	step_thread = num_threads
+	step_thread = min(num_threads,total_num)
 	rst += [step_thread, max_num_thread]
 	rst = np.array(rst,dtype = np.int32)
 	return rst,[nums_image,nums_filter,num_top,num_left]
